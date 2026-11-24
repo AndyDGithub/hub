@@ -1,0 +1,99 @@
+# CI du hub — phase 0 : tests + lint + audit des dépendances. Aucun déploiement ici.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Token GitHub en lecture seule : ce workflow n'écrit rien nulle part.
+permissions:
+  contents: read
+
+# Un nouveau push annule le run précédent de la même branche (évite les runs inutiles).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Actions épinglées par SHA (une version taguée peut être déplacée, pas un commit).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Style (Pint)
+        run: vendor/bin/pint --test
+      - name: Vulnérabilités connues des dépendances
+        run: composer audit --no-interaction
+
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        # 8.2 = minimum de composer.json ; 8.4 = version visée sur o2switch.
+        php: ['8.2', '8.4']
+    services:
+      # Même moteur que la prod o2switch (MariaDB 11.4) : FULLTEXT/BM25 doit être testé sur le vrai moteur, pas SQLite.
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: hub_test
+          MARIADB_USER: hub
+          MARIADB_PASSWORD: hub-ci-only        # base jetable du runner, pas un secret
+          MARIADB_RANDOM_ROOT_PASSWORD: '1'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      # Surcharge le SQLite en mémoire de phpunit.xml (les <env> sans force="true" ne s'imposent pas).
+      DB_CONNECTION: mariadb
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: hub_test
+      DB_USERNAME: hub
+      DB_PASSWORD: hub-ci-only
+      PASSWORD_PEPPER: ci-only-pepper-not-a-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, mbstring, intl
+          coverage: none
+          tools: composer:v2
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Préparer l'environnement
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+      - name: Migrations (aller-retour pour vérifier qu'elles sont réversibles)
+        run: |
+          php artisan migrate --force --no-interaction
+          php artisan migrate:rollback --force --no-interaction
+          php artisan migrate --force --no-interaction
+      - name: Tests
+        run: php artisan test

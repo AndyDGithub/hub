@@ -1,0 +1,12 @@
+# PR automatiques de mises à jour (dépendances PHP, JS, et SHA des actions épinglées).
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
