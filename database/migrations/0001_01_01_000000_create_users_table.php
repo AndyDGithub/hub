@@ -14,9 +14,15 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('username')->nullable()->unique();
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            // Compte créé par un admin/maintainer : mot de passe temporaire à changer avant tout usage.
+            $table->boolean('must_change_password')->default(false);
+            $table->timestamp('temporary_password_expires_at')->nullable();
+            $table->boolean('is_banned')->default(false);
+            $table->timestamp('last_login_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

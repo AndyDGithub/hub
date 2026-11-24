@@ -18,6 +18,8 @@ class User extends Authenticatable
 
     /**
      * The attributes that are mass assignable.
+     * Les champs sensibles (is_banned, must_change_password…) ne s'écrivent qu'avec forceFill(),
+     * pour qu'un create($request->validated()) ne puisse jamais les modifier.
      *
      * @var list<string>
      */
@@ -26,8 +28,6 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
-        'is_banned',
-        'last_login_at',
     ];
 
     /**
@@ -51,6 +51,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_banned' => 'boolean',
+            'must_change_password' => 'boolean',
+            'temporary_password_expires_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
     }

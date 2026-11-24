@@ -31,5 +31,8 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Valeurs factices réservées aux tests (pas des secrets). -->
+        <env name="PASSWORD_PEPPER" value="testing-pepper-not-a-secret-0123456789abcdef"/>
+        <env name="JWT_SECRET" value="testing-jwt-secret-not-a-secret-0123456789"/>
     </php>
 </phpunit>

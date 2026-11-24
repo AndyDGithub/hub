@@ -11,8 +11,8 @@ class JwtService
     public function issueToken(User $user): string
     {
         $now = CarbonImmutable::now();
-        $ttlMinutes = (int) env('JWT_TTL', 60);
-        $refreshTtlMinutes = (int) env('JWT_REFRESH_TTL', 10080);
+        $ttlMinutes = (int) config('hub.jwt.ttl_minutes');
+        $refreshTtlMinutes = (int) config('hub.jwt.refresh_ttl_minutes');
 
         $payload = [
             'iss' => config('app.url'),
@@ -26,6 +26,12 @@ class JwtService
         ];
 
         return $this->encode($payload);
+    }
+
+    /** Durée de vie d'un access token, en secondes (champ expires_in des réponses). */
+    public function ttlSeconds(): int
+    {
+        return (int) config('hub.jwt.ttl_minutes') * 60;
     }
 
     public function decode(string $token, bool $allowExpired = false): ?array
@@ -83,7 +89,14 @@ class JwtService
 
     private function secret(): string
     {
-        return (string) env('JWT_SECRET', config('app.key'));
+        $secret = (string) config('hub.jwt.secret');
+
+        // Sans secret, n'importe qui pourrait signer un token valide : on s'arrête net.
+        if ($secret === '') {
+            throw new \RuntimeException('JWT_SECRET (ou APP_KEY) manquant.');
+        }
+
+        return $secret;
     }
 
     private function base64UrlEncode(string $data): string

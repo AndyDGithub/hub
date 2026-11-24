@@ -40,6 +40,11 @@ class Authenticated
             return response()->json(['message' => 'User not found'], 401);
         }
 
+        // Tant que le mot de passe temporaire n'est pas changé, seules ces routes sont ouvertes.
+        if ($user->must_change_password && ! $request->is('api/auth/password', 'api/auth/logout', 'api/auth/me')) {
+            return response()->json(['message' => 'Password change required', 'must_change_password' => true], 403);
+        }
+
         Auth::setUser($user);
         $request->setUserResolver(static fn () => $user);
 

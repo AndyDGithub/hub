@@ -71,11 +71,20 @@ Option : Laravel Sanctum (officiel, tokens avec « abilities » = permissions pa
 | 4 — Recherche hybride | embeddings, RRF, jeu d'évaluation | |
 | 5 — Infra | pilotage du cluster | |
 
-## Dette connue (relevé du 2026-11-24)
+## Dette connue
 
-- [ ] `.env` utilise le `PASSWORD_PEPPER` d'exemple → générer un vrai secret (invalide les mots de passe existants).
-- [ ] `ADMIN_EMAIL`/`ADMIN_NAME` définis deux fois dans `.env` : le second (maintainer) écrase l'admin.
-- [ ] Route publique `POST /register` : contraire à ADR-4 → remplacer par un flux d'invitation.
-- [ ] 7 appels `env()` hors de `config/` (ex. `JwtService`, `AuthController`) → renvoient `null` après `config:cache`.
-- [ ] Migrations `create_users/roles/permissions_table` du 2025-12-17 redondantes avec celles de Laravel/Spatie (protégées par `hasTable`) → à fusionner.
-- [ ] Tests : seulement les exemples Laravel.
+Corrigé le 2026-11-24 :
+- [x] Pepper d'exemple → pepper obligatoire (≥ 32 caractères, sinon l'app refuse de hacher), appliqué par HMAC-SHA256
+  avant bcrypt (bcrypt ignore tout au-delà de 72 octets). Tous les anciens mots de passe sont invalidés.
+- [x] Comptes `ADMIN_*`/`READER_*` en double dans `.env` → supprimés ; le seeder ne crée plus que rôles et permissions.
+- [x] `POST /auth/register` public → `POST /api/users` (admin, maintainer) + `php artisan hub:user:create`,
+  avec mot de passe temporaire (72 h) à changer avant tout autre appel. Rôles attribuables : `config/hub.php`.
+- [x] `env()` hors de `config/` → `config/hub.php`.
+- [x] Migrations redondantes du 2025-12-17 fusionnées dans `create_users_table` (colonnes `description` inutilisées retirées).
+- [x] Tests : création de comptes, droits par rôle, mot de passe temporaire, pepper.
+
+Reste :
+- [ ] `GET /api/docs` (public) renvoie l'e-mail de l'auteur → ne garder que le nom (phase 2, visibilité).
+- [ ] `POST /auth/refresh` ne vérifie pas `is_banned` (les routes protégées le font, mais le token est quand même émis).
+- [ ] Envoi automatique du mot de passe temporaire (e-mail ou Telegram) : phase 3, événement `user.created`.
+- [ ] Mises à jour majeures en attente : `spatie/laravel-permission` 8, `laravel/framework` 13.

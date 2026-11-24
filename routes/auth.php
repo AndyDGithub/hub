@@ -4,7 +4,7 @@ use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
+    // Pas d'inscription publique : les comptes sont créés via POST /api/users (admin/maintainer).
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/refresh', [AuthController::class, 'refresh'])->middleware('throttle:20,1');
 

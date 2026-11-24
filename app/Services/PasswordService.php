@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use RuntimeException;
 
 class PasswordService
 {
@@ -13,12 +15,7 @@ class PasswordService
 
     public function verify(string $plainPassword, string $hash): bool
     {
-        if (Hash::check($this->pepper($plainPassword), $hash)) {
-            return true;
-        }
-
-        // Backward compatibility for passwords hashed before pepper rollout.
-        return Hash::check($plainPassword, $hash);
+        return Hash::check($this->pepper($plainPassword), $hash);
     }
 
     public function needsUpgrade(string $hash): bool
@@ -26,10 +23,27 @@ class PasswordService
         return Hash::needsRehash($hash);
     }
 
+    /** Mot de passe temporaire lisible à transmettre à une personne invitée. */
+    public function generateTemporary(): string
+    {
+        return Str::password(20, symbols: false);
+    }
+
+    /**
+     * HMAC-SHA256(mot de passe, pepper) puis bcrypt.
+     * Concaténer le pepper ne marche pas avec bcrypt, qui ignore tout au-delà de 72 octets :
+     * avec un long mot de passe, le pepper serait silencieusement tronqué. Le HMAC donne
+     * toujours 64 caractères hexadécimaux, sous la limite.
+     */
     private function pepper(string $plainPassword): string
     {
-        $pepper = (string) env('PASSWORD_PEPPER', '');
+        $pepper = (string) config('hub.passwords.pepper');
 
-        return $plainPassword.$pepper;
+        // On refuse de hacher plutôt que de créer des hashs sans pepper (irrécupérables ensuite).
+        if (strlen($pepper) < 32) {
+            throw new RuntimeException('PASSWORD_PEPPER manquant ou trop court (32 caractères minimum).');
+        }
+
+        return hash_hmac('sha256', $plainPassword, $pepper);
     }
 }

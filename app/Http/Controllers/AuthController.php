@@ -8,37 +8,9 @@ use App\Services\PasswordService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
-    public function register(Request $request, JwtService $jwt, PasswordService $passwordService): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'username' => ['nullable', 'string', 'max:100', 'alpha_dash', 'unique:users,username'],
-            'email' => ['required', 'string', 'email:rfc,dns', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:10', 'confirmed'],
-        ]);
-
-        $validated['password'] = $passwordService->hash($validated['password']);
-        $user = User::query()->create($validated);
-        $defaultRole = Role::query()->where('name', 'reader')->where('guard_name', 'web')->first();
-        if ($defaultRole) {
-            $user->assignRole($defaultRole);
-        }
-
-        $token = $jwt->issueToken($user);
-
-        return response()->json([
-            'message' => 'User registered',
-            'token_type' => 'Bearer',
-            'access_token' => $token,
-            'expires_in' => (int) env('JWT_TTL', 60) * 60,
-            'user' => $user->load('roles'),
-        ], 201);
-    }
-
     public function login(Request $request, JwtService $jwt, PasswordService $passwordService): JsonResponse
     {
         $credentials = $request->validate([
@@ -63,6 +35,11 @@ class AuthController extends Controller
             return response()->json(['message' => 'Your account is banned'], 403);
         }
 
+        // Mot de passe temporaire périmé : il faut en demander un nouveau à un admin.
+        if ($user->must_change_password && $user->temporary_password_expires_at?->isPast()) {
+            return response()->json(['message' => 'Temporary password expired, ask an administrator for a new one'], 403);
+        }
+
         $user->forceFill(['last_login_at' => now()])->save();
         $token = $jwt->issueToken($user);
 
@@ -70,7 +47,9 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'token_type' => 'Bearer',
             'access_token' => $token,
-            'expires_in' => (int) env('JWT_TTL', 60) * 60,
+            'expires_in' => $jwt->ttlSeconds(),
+            // true = le client doit d'abord appeler POST /api/auth/password (tout le reste renvoie 403).
+            'must_change_password' => $user->must_change_password,
             'user' => $user->load('roles'),
         ]);
     }
@@ -114,7 +93,7 @@ class AuthController extends Controller
             'message' => 'Token refreshed',
             'token_type' => 'Bearer',
             'access_token' => $newToken,
-            'expires_in' => (int) env('JWT_TTL', 60) * 60,
+            'expires_in' => $jwt->ttlSeconds(),
         ]);
     }
 
@@ -155,6 +134,8 @@ class AuthController extends Controller
 
         $user->forceFill([
             'password' => $passwordService->hash($validated['new_password']),
+            'must_change_password' => false,
+            'temporary_password_expires_at' => null,
         ])->save();
 
         $token = $request->bearerToken();
