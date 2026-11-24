@@ -1,12 +1,20 @@
 # PR automatiques de mises à jour (dépendances PHP, JS, et SHA des actions épinglées).
+# Mineures/patchs groupées en une seule PR par écosystème ; les versions majeures restent
+# des PR séparées, car elles demandent une lecture du guide de migration.
 version: 2
 updates:
   - package-ecosystem: composer
     directory: /
     schedule: { interval: weekly }
+    groups:
+      composer-minor:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
+    groups:
+      npm-minor:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

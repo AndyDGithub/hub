@@ -44,10 +44,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
-      fail-fast: true
+      # Voir toutes les versions qui cassent, pas seulement la première.
+      fail-fast: false
       matrix:
-        # 8.2 = minimum de composer.json ; 8.4 = version visée sur o2switch.
-        php: ['8.2', '8.4']
+        # 8.4 = minimum (composer.lock) et version de prod o2switch ; 8.5 = PHP local d'Andy.
+        php: ['8.4', '8.5']
     services:
       # Même moteur que la prod o2switch (MariaDB 11.4) : FULLTEXT/BM25 doit être testé sur le vrai moteur, pas SQLite.
       mariadb:

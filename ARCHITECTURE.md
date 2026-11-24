@@ -51,7 +51,7 @@ qui obtient des identifiants cloud courts via OIDC. State dans un bucket chiffr�
 **Aucune clé cloud sur l'hébergement web.**
 
 ### ADR-6 — Hébergement : o2switch d'abord, portable ensuite (accepté)
-- PHP 8.2–8.6 disponibles mais `php` en CLI = 8.1 → utiliser `/opt/cpanel/ea-php84/root/usr/bin/php` pour `artisan`.
+- PHP minimum **8.4** (dépendances Symfony 8). Sur o2switch, `php` en CLI = 8.1 → utiliser `/opt/cpanel/ea-php84/root/usr/bin/php` pour `artisan`.
 - Pas de worker permanent ni de websockets : files traitées par cron (`queue:work --stop-when-empty`).
 - Configuration 100 % par variables d'environnement (jamais `env()` hors de `config/`) pour pouvoir déménager
   sur un VPS ou le cluster sans réécriture.
@@ -64,7 +64,7 @@ Option : Laravel Sanctum (officiel, tokens avec « abilities » = permissions pa
 
 | Phase | Contenu | État |
 |---|---|---|
-| 0 — Fondations | git, dépôt privé, CI tests, bêta sur sous-domaine | en cours |
+| 0 — Fondations | git, dépôt privé, CI tests, bêta sur sous-domaine | fait (bêta : sous-domaine créé, rien de déployé) |
 | 1 — Connaissance | modèle de fiche, import megadoc, BM25, serveur MCP (`laravel/mcp`) | |
 | 2 — Partage | invitations, visibilité par contenu, tokens par outil | |
 | 3 — Événements | webhooks vers telegram-notifier, dashboard | |
