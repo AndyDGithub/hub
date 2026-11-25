@@ -60,30 +60,39 @@ class UserProvisioningTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'user.created', 'auditable_id' => $alice->id, 'user_id' => $admin->id]);
     }
 
-    public function test_maintainer_can_create_reader_and_user_only(): void
+    public function test_maintainer_can_create_premium_user_reader_but_not_maintainer_or_admin(): void
     {
         $maintainer = $this->userWithRole('maintainer');
 
-        foreach (['reader', 'user'] as $role) {
+        foreach (['premium', 'user', 'reader'] as $role) {
             $this->postJson('/api/users', ['name' => $role, 'email' => "new-{$role}@example.test", 'role' => $role], $this->auth($maintainer))
                 ->assertCreated();
         }
-        foreach (['premium', 'maintainer', 'admin'] as $role) {
+        foreach (['maintainer', 'admin'] as $role) {
             $this->postJson('/api/users', ['name' => $role, 'email' => "new-{$role}@example.test", 'role' => $role], $this->auth($maintainer))
                 ->assertUnprocessable()->assertJsonValidationErrors('role');
             $this->assertDatabaseMissing('users', ['email' => "new-{$role}@example.test"]);
         }
     }
 
-    public function test_premium_has_user_permissions_plus_premium_tools(): void
+    public function test_role_permissions(): void
     {
-        $premium = $this->userWithRole('premium');
-        $user = $this->userWithRole('user');
+        $users = [];
+        $can = function (string $role, string $permission) use (&$users) {
+            $users[$role] ??= $this->userWithRole($role);
 
-        $this->assertTrue($user->can('tools.use'));
-        $this->assertFalse($user->can('tools.premium'));
-        $this->assertTrue($premium->can('tools.use') && $premium->can('tools.premium'));
-        $this->assertFalse($premium->can('content.create'));
+            return $users[$role]->can($permission);
+        };
+
+        $this->assertTrue($can('user', 'tools.use'));
+        $this->assertFalse($can('user', 'tools.premium'));
+        $this->assertTrue($can('premium', 'tools.premium'));
+        $this->assertFalse($can('premium', 'content.create'));
+        $this->assertTrue($can('maintainer', 'tools.premium'));
+        // Seul l'admin touche aux rôles et aux données sensibles.
+        $this->assertFalse($can('maintainer', 'admin.roles'));
+        $this->assertFalse($can('maintainer', 'admin.sensitive'));
+        $this->assertTrue($can('admin', 'admin.roles') && $can('admin', 'admin.sensitive'));
     }
 
     public function test_reader_user_premium_and_anonymous_cannot_create_users(): void

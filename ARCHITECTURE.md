@@ -44,15 +44,16 @@ cours sur le serveur dans `~/hesso_save`.
 ### ADR-4 — Partage sur invitation, autorisations par contenu (accepté)
 Pas d'inscription publique : un admin/maintainer crée le compte, la personne reçoit un mot de passe temporaire.
 
-| Rôle | Lire | Écrire du contenu | Outils standard | Outils coûteux | Gérer les comptes |
-|---|---|---|---|---|---|
-| `reader` | ✓ | | | | |
-| `user` | ✓ | | ✓ | | |
-| `premium` | ✓ | | ✓ | ✓ | |
-| `maintainer` | ✓ | ✓ | ✓ | | crée `user`, `reader` |
-| `admin` | ✓ | ✓ (+ suppression) | ✓ | ✓ | tous |
+| Rôle | Lire | Écrire du contenu | Outils standard | Outils coûteux | Créer des comptes | Rôles, permissions, données sensibles |
+|---|---|---|---|---|---|---|
+| `reader` | ✓ | | | | | |
+| `user` | ✓ | | ✓ | | | |
+| `premium` | ✓ | | ✓ | ✓ | | |
+| `maintainer` | ✓ | ✓ | ✓ | ✓ | `premium`, `user`, `reader` | |
+| `admin` | ✓ | ✓ (+ suppression) | ✓ | ✓ | tous | ✓ |
 
-Permissions : `content.*`, `attachment.*`, `user.manage`, `tools.use`, `tools.premium` (`DatabaseSeeder`).
+Permissions : `content.*`, `attachment.*`, `user.manage`, `tools.use`, `tools.premium`, et `admin.roles` / `admin.sensitive`
+(admin seul : changer rôles et permissions, réglages et secrets d'intégration, journal d'audit complet). Source : `DatabaseSeeder`.
 Visibilité par contenu (privé / groupe / personnes) via les Policies Laravel.
 Chaque outil reçoit son propre token, limité à ce dont il a besoin.
 
@@ -106,7 +107,8 @@ Une fiche est un `contents` (comme docs et cours) avec `type` : `concept`, `reso
 
 - `php artisan hub:knowledge:import ~/hesso/megadoc_skills.md ~/megadoc` : simulation ; `--write` pour écrire.
   `megadoc_skills.md` → une fiche par `###` ; autres pages → une fiche par fichier. Pages vides, cachées, `README.md`
-  et > 200 Ko ignorées ; une fiche qui contient un secret probable est sautée.
+  et > 200 Ko ignorées, ainsi que `hub.knowledge.import_exclude` (exports `claude-config*`) ; une fiche qui contient
+  un secret probable est sautée.
 - `GET /api/knowledge/search?q=…&type=…` (`content.read`), `GET /api/knowledge/{slug}`.
 - `POST /api/knowledge/resolutions` (`content.create`) : `{error_message, context?, cause?, solution?, tags?}`.
   Erreur connue → `known`, compteur +1 ; inconnue sans solution → `unknown` + fiches proches ; avec solution → `created`.

@@ -24,11 +24,16 @@ return [
     ],
 
     // Rôle => rôles qu'il a le droit d'attribuer en créant un compte.
-    // Un maintainer ne peut pas créer d'admin (sinon il pourrait s'élever lui-même).
+    // Un maintainer ne peut pas créer d'admin ni de maintainer (sinon il pourrait étendre ses propres droits).
     'assignable_roles' => [
         'admin' => ['admin', 'maintainer', 'premium', 'user', 'reader'],
-        // Pas premium : ce rôle donne accès aux outils qui coûtent de l'argent, c'est à l'admin de décider.
-        'maintainer' => ['user', 'reader'],
+        // Créer un maintainer ou un admin = donner des droits de gestion : réservé à l'admin.
+        'maintainer' => ['premium', 'user', 'reader'],
+    ],
+
+    'knowledge' => [
+        // Fichiers jamais importés (noms exacts) : exports bruts qui parlent de tout et polluent la recherche.
+        'import_exclude' => ['claude-config.md', 'claude-config-summary.md'],
     ],
 
 ];

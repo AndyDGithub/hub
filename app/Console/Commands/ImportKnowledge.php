@@ -42,6 +42,7 @@ class ImportKnowledge extends Command
                 $source = basename(dirname($file)).'/'.$name;
 
                 $reason = match (true) {
+                    in_array($name, config('hub.knowledge.import_exclude'), true) => 'exclu (config hub.knowledge.import_exclude)',
                     str_starts_with($name, '.') => 'fichier caché',
                     $name === 'README.md' => 'index',
                     $size < 200 => 'presque vide',

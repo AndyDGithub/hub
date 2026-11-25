@@ -80,6 +80,7 @@ class KnowledgeTest extends TestCase
         $dir = sys_get_temp_dir().'/megadoc-test-'.uniqid();
         mkdir($dir);
         file_put_contents("$dir/projet.md", "# Projet X\n\n**Source :** `/x`\n\n".str_repeat('Texte utile. ', 30));
+        file_put_contents("$dir/claude-config-summary.md", "# Claude Configuration Summary\n\n".str_repeat('tout ', 100));
         file_put_contents("$dir/fuite.md", "# Notes\n\nOPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz123456\n".str_repeat('a ', 120));
 
         try {
@@ -92,6 +93,7 @@ class KnowledgeTest extends TestCase
             $this->assertSame(1, Content::query()->count());
             $this->assertSame('project', Content::query()->first()->type);
             $this->assertDatabaseMissing('contents', ['title' => 'Notes']);
+            $this->assertDatabaseMissing('contents', ['title' => 'Claude Configuration Summary']);
         } finally {
             array_map('unlink', glob("$dir/*"));
             rmdir($dir);

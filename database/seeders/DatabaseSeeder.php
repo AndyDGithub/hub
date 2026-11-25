@@ -14,16 +14,19 @@ use Spatie\Permission\PermissionRegistrar;
  */
 class DatabaseSeeder extends Seeder
 {
-    // Du plus large au plus restreint. tools.use = outils standard ; tools.premium = outils
-    // coûteux (cluster, GPU, API payantes), réservés au rôle premium et au-dessus.
+    // tools.use = outils standard ; tools.premium = outils coûteux (cluster, GPU, API payantes).
+    // Les permissions admin.* sont réservées à l'admin : rôles et permissions, comptes maintainer/admin,
+    // données sensibles (réglages, secrets d'intégration, journal d'audit complet).
     private const READ = ['content.read', 'attachment.download'];
 
     private const EDIT = ['content.create', 'content.update', 'attachment.create'];
 
+    private const TOOLS = ['tools.use', 'tools.premium'];
+
     public const ROLES = [
-        'admin' => [...self::READ, ...self::EDIT, 'content.delete', 'user.manage', 'tools.use', 'tools.premium'],
-        'maintainer' => [...self::READ, ...self::EDIT, 'user.manage', 'tools.use'],
-        'premium' => [...self::READ, 'tools.use', 'tools.premium'],
+        'admin' => [...self::READ, ...self::EDIT, ...self::TOOLS, 'content.delete', 'user.manage', 'admin.roles', 'admin.sensitive'],
+        'maintainer' => [...self::READ, ...self::EDIT, ...self::TOOLS, 'user.manage'],
+        'premium' => [...self::READ, ...self::TOOLS],
         'user' => [...self::READ, 'tools.use'],
         'reader' => self::READ,
     ];
