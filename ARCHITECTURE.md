@@ -68,9 +68,13 @@ qui obtient des identifiants cloud courts via OIDC. State dans un bucket chiffr�
 - Configuration 100 % par variables d'environnement (jamais `env()` hors de `config/`) pour pouvoir déménager
   sur un VPS ou le cluster sans réécriture.
 
-### ADR-7 — Authentification (à décider en phase 2)
-Existant : JWT HS256 maison (`app/Services/JwtService.php`), correctement signé et vérifié.
-Option : Laravel Sanctum (officiel, tokens avec « abilities » = permissions par outil, cf. ADR-4).
+### ADR-7 — Authentification : JWT pour les personnes, tokens Sanctum pour les outils (2026-11-25, accepté)
+- Personnes : JWT HS256 maison (`JwtService`), 60 min + refresh, révocation par `jti`.
+- Outils (Claude Code, dashboard, workers) : tokens Laravel Sanctum, créés par `php artisan hub:token:create`,
+  avec des abilities (`knowledge:read`, `knowledge:write`) et une expiration (90 j par défaut).
+  Un outil MCP exige **à la fois** la permission du compte et l'ability du token (`App\Mcp\Tools\AuthorizesTool`) :
+  un token lecture seule ne peut jamais écrire, même sur un compte admin. Un token ne peut pas dépasser les droits du compte.
+- Unifier sur Sanctum pour les personnes aussi reste possible plus tard, si le JWT devient un coût.
 
 ### ADR-8 — Outils : catalogue dans le hub, exécution là où c'est possible (2026-11-25, proposé)
 Chaque outil est déclaré dans le hub (nom, permission requise `tools.use`/`tools.premium`, où il s'exécute, limites).
@@ -93,7 +97,7 @@ Fichiers : taille max et durée de conservation par outil ; jamais servis depuis
 | Phase | Contenu | État |
 |---|---|---|
 | 0 — Fondations | git, dépôt privé, CI tests, bêta sur sous-domaine | fait (bêta : sous-domaine créé, rien de déployé) |
-| 1 — Connaissance | fiches, import megadoc, recherche FULLTEXT, résolutions d'erreurs, serveur MCP (`laravel/mcp`) | en cours : tout sauf MCP et `~/hesso_save` |
+| 1 — Connaissance | fiches, import megadoc, recherche FULLTEXT, résolutions d'erreurs, serveur MCP (`laravel/mcp`) | fait, sauf import `~/hesso_save` (dossier illisible, voir dette) |
 | 2 — Partage | visibilité par contenu, tokens par outil | |
 | 3 — Événements | webhooks vers telegram-notifier, dashboard, envoi du mot de passe temporaire | |
 | 4 — Outils | catalogue + jobs (ADR-8) ; d'abord éditeur d'images (navigateur), puis PDF, puis workers | |
@@ -114,6 +118,9 @@ Une fiche est un `contents` (comme docs et cours) avec `type` : `concept`, `reso
   Erreur connue → `known`, compteur +1 ; inconnue sans solution → `unknown` + fiches proches ; avec solution → `created`.
   L'empreinte ignore chemins, nombres, adresses : la même erreur dans un autre fichier est reconnue.
 
+- Serveur MCP `POST /mcp/hub` (token Sanctum) : `search-knowledge`, `get-fiche` (lecture), `record-resolution` (écriture).
+  Les outils non autorisés pour le token n'apparaissent même pas dans `tools/list`.
+
 ## Dette connue
 
 Corrigé le 2026-11-24 :
@@ -127,6 +134,10 @@ Corrigé le 2026-11-24 :
 - [x] Tests : création de comptes, droits par rôle, mot de passe temporaire, pepper.
 
 Reste :
+- [ ] **Le `.env` local pointe sur la base de prod o2switch** (`viyo8618_DOCS_ANDY`) : passer sur la base de dev
+  (`compose.yaml`) ; ne jamais lancer `migrate:fresh` avec ce `.env`.
+- [ ] `~/hesso_save` et `~/Documents` sur le serveur appartiennent à `nobody:nobody` en `d---------` : illisibles par le compte
+  → ticket o2switch (chown vers `viyo8618`) avant de pouvoir importer les cours.
 - [ ] `GET /api/docs` (public) renvoie l'e-mail de l'auteur → ne garder que le nom (phase 2, visibilité).
 - [ ] `POST /auth/refresh` ne vérifie pas `is_banned` (les routes protégées le font, mais le token est quand même émis).
 - [ ] Envoi automatique du mot de passe temporaire (e-mail ou Telegram) : phase 3, événement `user.created`.

@@ -1,0 +1,20 @@
+# Base de développement locale (même moteur que la prod o2switch).
+#   docker compose up -d
+# puis dans .env : DB_CONNECTION=mariadb DB_HOST=127.0.0.1 DB_PORT=3307 DB_DATABASE=hub DB_USERNAME=hub DB_PASSWORD=hub-dev-only
+# Ne JAMAIS pointer un .env local sur la base de production : migrate:fresh l'effacerait.
+services:
+  mariadb:
+    image: mariadb:11.4
+    ports: ['127.0.0.1:3307:3306']   # écoute seulement en local
+    environment:
+      MARIADB_DATABASE: hub
+      MARIADB_USER: hub
+      MARIADB_PASSWORD: hub-dev-only   # base jetable de dev, pas un secret
+      MARIADB_RANDOM_ROOT_PASSWORD: '1'
+    volumes: ['hub-db:/var/lib/mysql']
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      retries: 10
+volumes:
+  hub-db:
