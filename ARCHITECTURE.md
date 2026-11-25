@@ -11,7 +11,7 @@ permet de la retrouver, la partage sur invitation, et pilote les autres outils (
  Dashboard   ──►│ API  │  (rôles, tokens par outil, invitations) │
  Invités     ──►│      ├─────────────────────────────────────────┤
                 │      │ Connaissance : megadoc, cours, docs     │
-                │      │ Recherche : BM25 → hybride (RRF)        │
+                │      │ Recherche : FULLTEXT → hybride (RRF)    │
                 │      │ Événements → webhooks sortants          │──► telegram-notifier, ...
                 │      │ Infra : paramètres + déclenchement      │──► runner CI ──► OpenTofu ──► cluster
                 └───────────────────────────┬────────────────────┘
@@ -34,14 +34,25 @@ incrémenter ; sinon créer. Sources initiales : `~/hesso/megadoc_skills.md`, `~
 cours sur le serveur dans `~/hesso_save`.
 
 ### ADR-3 — Recherche progressive (accepté)
-1. BM25 via `FULLTEXT` MariaDB (disponible sur o2switch).
+1. `FULLTEXT` MariaDB (disponible sur o2switch). Le classement d'InnoDB est une variante de TF-IDF, pas un vrai BM25 :
+   le jeu d'évaluation dira s'il suffit. Mots de moins de 3 lettres non indexés, pas de racinisation (« volume » ≠ « volumes »).
 2. Hybride : embeddings + fusion RRF (k≈60), sans calibration.
    o2switch = MariaDB 11.4 (pas de type `VECTOR`, arrivé en 11.7/11.8) et PostgreSQL 9.6 (pas de pgvector) :
    embeddings stockés en base, similarité calculée dans l'app tant que le volume reste de l'ordre de quelques milliers de fiches.
 3. Jeu d'évaluation : ~20 requêtes réelles avec la fiche attendue, pour prouver chaque amélioration.
 
 ### ADR-4 — Partage sur invitation, autorisations par contenu (accepté)
-Pas d'inscription publique : invitation → approbation. Rôles (Spatie) : lecture seule, écriture partielle, aucun accès.
+Pas d'inscription publique : un admin/maintainer crée le compte, la personne reçoit un mot de passe temporaire.
+
+| Rôle | Lire | Écrire du contenu | Outils standard | Outils coûteux | Gérer les comptes |
+|---|---|---|---|---|---|
+| `reader` | ✓ | | | | |
+| `user` | ✓ | | ✓ | | |
+| `premium` | ✓ | | ✓ | ✓ | |
+| `maintainer` | ✓ | ✓ | ✓ | | crée `user`, `reader` |
+| `admin` | ✓ | ✓ (+ suppression) | ✓ | ✓ | tous |
+
+Permissions : `content.*`, `attachment.*`, `user.manage`, `tools.use`, `tools.premium` (`DatabaseSeeder`).
 Visibilité par contenu (privé / groupe / personnes) via les Policies Laravel.
 Chaque outil reçoit son propre token, limité à ce dont il a besoin.
 
@@ -60,16 +71,46 @@ qui obtient des identifiants cloud courts via OIDC. State dans un bucket chiffr�
 Existant : JWT HS256 maison (`app/Services/JwtService.php`), correctement signé et vérifié.
 Option : Laravel Sanctum (officiel, tokens avec « abilities » = permissions par outil, cf. ADR-4).
 
+### ADR-8 — Outils : catalogue dans le hub, exécution là où c'est possible (2026-11-25, proposé)
+Chaque outil est déclaré dans le hub (nom, permission requise `tools.use`/`tools.premium`, où il s'exécute, limites).
+Un appel crée un **job** (`tool_runs` : entrée, statut, sortie, durée, coût), visible dans le dashboard et notifié (phase 3).
+Trois lieux d'exécution, du moins cher au plus cher :
+
+| Lieu | Quand | Exemples |
+|---|---|---|
+| **Navigateur** (JS/Canvas/WASM) | calcul léger sur les fichiers de l'utilisateur, rien à stocker | noir et blanc, inversion, contraste, révéler les bits de poids faible (curseur 1–8 bits) |
+| **Hub** (PHP + cron) | court, sans GPU, ou appel d'une API externe | PDF via iLoveAPI, recherche megadoc |
+| **Workers** (cluster, PC) | lourd : ffmpeg, GPU, modèles | mp4 ↔ gif, transcription + locuteurs (psifx : `audio/transcription`, `audio/diarization`), vidéo (pose, visage) |
+
+Les workers **tirent** les jobs (`GET /api/jobs/next` avec un token propre à chaque worker) au lieu d'être appelés :
+aucun port ouvert sur le cluster, aucune clé cloud sur o2switch (ADR-5), et un worker éteint ne fait que retarder.
+o2switch n'a pas de file permanente : les jobs « hub » passent par cron (ADR-6).
+Fichiers : taille max et durée de conservation par outil ; jamais servis depuis `public/`.
+
 ## Feuille de route
 
 | Phase | Contenu | État |
 |---|---|---|
 | 0 — Fondations | git, dépôt privé, CI tests, bêta sur sous-domaine | fait (bêta : sous-domaine créé, rien de déployé) |
-| 1 — Connaissance | modèle de fiche, import megadoc, BM25, serveur MCP (`laravel/mcp`) | |
-| 2 — Partage | invitations, visibilité par contenu, tokens par outil | |
-| 3 — Événements | webhooks vers telegram-notifier, dashboard | |
-| 4 — Recherche hybride | embeddings, RRF, jeu d'évaluation | |
-| 5 — Infra | pilotage du cluster | |
+| 1 — Connaissance | fiches, import megadoc, recherche FULLTEXT, résolutions d'erreurs, serveur MCP (`laravel/mcp`) | en cours : tout sauf MCP et `~/hesso_save` |
+| 2 — Partage | visibilité par contenu, tokens par outil | |
+| 3 — Événements | webhooks vers telegram-notifier, dashboard, envoi du mot de passe temporaire | |
+| 4 — Outils | catalogue + jobs (ADR-8) ; d'abord éditeur d'images (navigateur), puis PDF, puis workers | |
+| 5 — Recherche hybride | embeddings, RRF, jeu d'évaluation | |
+| 6 — Infra | pilotage du cluster, workers premium | |
+
+## Connaissance (phase 1)
+
+Une fiche est un `contents` (comme docs et cours) avec `type` : `concept`, `resolution`, `project`, `note`, `doc`, `course`, `exercise`.
+`source` + `source_hash` rendent l'import idempotent ; `verification` = `planned` < `in_code` < `executed` < `validated`.
+
+- `php artisan hub:knowledge:import ~/hesso/megadoc_skills.md ~/megadoc` : simulation ; `--write` pour écrire.
+  `megadoc_skills.md` → une fiche par `###` ; autres pages → une fiche par fichier. Pages vides, cachées, `README.md`
+  et > 200 Ko ignorées ; une fiche qui contient un secret probable est sautée.
+- `GET /api/knowledge/search?q=…&type=…` (`content.read`), `GET /api/knowledge/{slug}`.
+- `POST /api/knowledge/resolutions` (`content.create`) : `{error_message, context?, cause?, solution?, tags?}`.
+  Erreur connue → `known`, compteur +1 ; inconnue sans solution → `unknown` + fiches proches ; avec solution → `created`.
+  L'empreinte ignore chemins, nombres, adresses : la même erreur dans un autre fichier est reconnue.
 
 ## Dette connue
 

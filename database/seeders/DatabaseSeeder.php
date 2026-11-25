@@ -14,18 +14,18 @@ use Spatie\Permission\PermissionRegistrar;
  */
 class DatabaseSeeder extends Seeder
 {
+    // Du plus large au plus restreint. tools.use = outils standard ; tools.premium = outils
+    // coûteux (cluster, GPU, API payantes), réservés au rôle premium et au-dessus.
+    private const READ = ['content.read', 'attachment.download'];
+
+    private const EDIT = ['content.create', 'content.update', 'attachment.create'];
+
     public const ROLES = [
-        'admin' => [
-            'content.read', 'content.create', 'content.update', 'content.delete',
-            'attachment.create', 'attachment.download', 'user.manage',
-        ],
-        'maintainer' => [
-            'content.read', 'content.create', 'content.update',
-            'attachment.create', 'attachment.download', 'user.manage',
-        ],
-        'reader' => [
-            'content.read', 'attachment.download',
-        ],
+        'admin' => [...self::READ, ...self::EDIT, 'content.delete', 'user.manage', 'tools.use', 'tools.premium'],
+        'maintainer' => [...self::READ, ...self::EDIT, 'user.manage', 'tools.use'],
+        'premium' => [...self::READ, 'tools.use', 'tools.premium'],
+        'user' => [...self::READ, 'tools.use'],
+        'reader' => self::READ,
     ];
 
     public function run(): void

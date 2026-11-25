@@ -60,23 +60,39 @@ class UserProvisioningTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'user.created', 'auditable_id' => $alice->id, 'user_id' => $admin->id]);
     }
 
-    public function test_maintainer_can_create_reader_but_not_admin(): void
+    public function test_maintainer_can_create_reader_and_user_only(): void
     {
         $maintainer = $this->userWithRole('maintainer');
 
-        $this->postJson('/api/users', ['name' => 'R', 'email' => 'r@example.test', 'role' => 'reader'], $this->auth($maintainer))
-            ->assertCreated();
-        $this->postJson('/api/users', ['name' => 'X', 'email' => 'x@example.test', 'role' => 'admin'], $this->auth($maintainer))
-            ->assertUnprocessable()->assertJsonValidationErrors('role');
-        $this->assertDatabaseMissing('users', ['email' => 'x@example.test']);
+        foreach (['reader', 'user'] as $role) {
+            $this->postJson('/api/users', ['name' => $role, 'email' => "new-{$role}@example.test", 'role' => $role], $this->auth($maintainer))
+                ->assertCreated();
+        }
+        foreach (['premium', 'maintainer', 'admin'] as $role) {
+            $this->postJson('/api/users', ['name' => $role, 'email' => "new-{$role}@example.test", 'role' => $role], $this->auth($maintainer))
+                ->assertUnprocessable()->assertJsonValidationErrors('role');
+            $this->assertDatabaseMissing('users', ['email' => "new-{$role}@example.test"]);
+        }
     }
 
-    public function test_reader_and_anonymous_cannot_create_users(): void
+    public function test_premium_has_user_permissions_plus_premium_tools(): void
     {
-        $reader = $this->userWithRole('reader');
+        $premium = $this->userWithRole('premium');
+        $user = $this->userWithRole('user');
+
+        $this->assertTrue($user->can('tools.use'));
+        $this->assertFalse($user->can('tools.premium'));
+        $this->assertTrue($premium->can('tools.use') && $premium->can('tools.premium'));
+        $this->assertFalse($premium->can('content.create'));
+    }
+
+    public function test_reader_user_premium_and_anonymous_cannot_create_users(): void
+    {
         $payload = ['name' => 'Y', 'email' => 'y@example.test', 'role' => 'reader'];
 
-        $this->postJson('/api/users', $payload, $this->auth($reader))->assertForbidden();
+        foreach (['reader', 'user', 'premium'] as $role) {
+            $this->postJson('/api/users', $payload, $this->auth($this->userWithRole($role)))->assertForbidden();
+        }
         $this->postJson('/api/users', $payload)->assertUnauthorized();
         $this->assertDatabaseMissing('users', ['email' => 'y@example.test']);
     }

@@ -20,7 +20,7 @@ class CreateUser extends Command
         {email : Adresse e-mail (identifiant de connexion)}
         {--name= : Nom affiché}
         {--username= : Pseudo optionnel}
-        {--role=reader : admin, maintainer ou reader}
+        {--role=reader : admin, maintainer, premium, user ou reader}
         {--json : Sortie JSON (pour un script d\'envoi)}';
 
     protected $description = 'Crée un compte avec un mot de passe temporaire (à changer à la première connexion)';

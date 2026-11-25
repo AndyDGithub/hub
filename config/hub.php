@@ -26,8 +26,9 @@ return [
     // Rôle => rôles qu'il a le droit d'attribuer en créant un compte.
     // Un maintainer ne peut pas créer d'admin (sinon il pourrait s'élever lui-même).
     'assignable_roles' => [
-        'admin' => ['admin', 'maintainer', 'reader'],
-        'maintainer' => ['reader'],
+        'admin' => ['admin', 'maintainer', 'premium', 'user', 'reader'],
+        // Pas premium : ce rôle donne accès aux outils qui coûtent de l'argent, c'est à l'admin de décider.
+        'maintainer' => ['user', 'reader'],
     ],
 
 ];
